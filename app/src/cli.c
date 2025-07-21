@@ -54,6 +54,8 @@ enum {
     OPT_DISPLAY_BUFFER,
     OPT_VIDEO_BUFFER,
     OPT_V4L2_BUFFER,
+    OPT_WEBRTC,
+    OPT_WEBRTC_PORT,
     OPT_TUNNEL_HOST,
     OPT_TUNNEL_PORT,
     OPT_NO_CLIPBOARD_AUTOSYNC,
@@ -973,6 +975,19 @@ static const struct sc_option options[] = {
                 "V4L2 sink.\n"
                 "Default is 0 (no buffering).\n"
                 "This option is only available on Linux.",
+    },
+    {
+        .longopt_id = OPT_WEBRTC,
+        .longopt = "webrtc",
+        .text = "Enable WebRTC streaming server.\n"
+                "This allows streaming to web browsers via WebRTC.",
+    },
+    {
+        .longopt_id = OPT_WEBRTC_PORT,
+        .longopt = "webrtc-port",
+        .argdesc = "port",
+        .text = "Set the WebRTC server port.\n"
+                "Default is 8080.",
     },
     {
         .longopt_id = OPT_VIDEO_BUFFER,
@@ -2703,6 +2718,26 @@ parse_args_with_getopt(struct scrcpy_cli_args *args, int argc, char *argv[],
                 break;
 #else
                 LOGE("V4L2 (--v4l2-buffer) is disabled (or unsupported on this "
+                     "platform).");
+                return false;
+#endif
+            case OPT_WEBRTC:
+#ifdef HAVE_WEBRTC
+                opts->webrtc_enabled = true;
+                break;
+#else
+                LOGE("WebRTC (--webrtc) is disabled (or unsupported on this "
+                     "platform).");
+                return false;
+#endif
+            case OPT_WEBRTC_PORT:
+#ifdef HAVE_WEBRTC
+                if (!parse_port(optarg, &opts->webrtc_port)) {
+                    return false;
+                }
+                break;
+#else
+                LOGE("WebRTC (--webrtc-port) is disabled (or unsupported on this "
                      "platform).");
                 return false;
 #endif

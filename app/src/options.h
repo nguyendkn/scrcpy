@@ -327,6 +327,10 @@ struct scrcpy_options {
     const char *start_app;
     bool vd_destroy_content;
     bool vd_system_decorations;
+#ifdef HAVE_WEBRTC
+    bool webrtc_enabled;
+    uint16_t webrtc_port;
+#endif
 };
 
 extern const struct scrcpy_options scrcpy_options_default;

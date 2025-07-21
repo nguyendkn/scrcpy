@@ -108,6 +108,11 @@ if usb_support
     ]
 endif
 
+webrtc_support = get_option('webrtc')
+if webrtc_support
+    src += [ 'src/webrtc_server.c' ]
+endif
+
 cc = meson.get_compiler('c')
 
 static = get_option('static')
@@ -126,6 +131,13 @@ endif
 
 if usb_support
     dependencies += dependency('libusb-1.0', static: static)
+endif
+
+# WebRTC support
+webrtc_support = get_option('webrtc')
+if webrtc_support
+    dependencies += dependency('libdatachannel', static: static)
+    dependencies += dependency('threads')
 endif
 
 if host_machine.system() == 'windows'
@@ -175,6 +187,9 @@ conf.set('HAVE_V4L2', v4l2_support)
 
 # enable HID over AOA support (linux only)
 conf.set('HAVE_USB', usb_support)
+
+# enable WebRTC support
+conf.set('HAVE_WEBRTC', webrtc_support)
 
 configure_file(configuration: conf, output: 'config.h')
 

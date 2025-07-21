@@ -44,6 +44,9 @@
 #ifdef HAVE_V4L2
 # include "v4l2_sink.h"
 #endif
+#ifdef HAVE_WEBRTC
+# include "webrtc_server.h"
+#endif
 
 struct scrcpy {
     struct sc_server server;
@@ -66,6 +69,9 @@ struct scrcpy {
     struct sc_aoa aoa;
     // sequence/ack helper to synchronize clipboard and Ctrl+v via HID
     struct sc_acksync acksync;
+#endif
+#ifdef HAVE_WEBRTC
+    struct sc_webrtc_server webrtc_server;
 #endif
     struct sc_uhid_devices uhid_devices;
     union {
@@ -416,6 +422,10 @@ scrcpy(struct scrcpy_options *options) {
     bool screen_initialized = false;
     bool timeout_initialized = false;
     bool timeout_started = false;
+#ifdef HAVE_WEBRTC
+    bool webrtc_server_initialized = false;
+    bool webrtc_server_started = false;
+#endif
 
     struct sc_acksync *acksync = NULL;
 
@@ -841,6 +851,13 @@ aoa_complete:
             }
 
             sc_frame_source_add_sink(src, &s->screen.frame_sink);
+
+#ifdef HAVE_WEBRTC
+            // Add WebRTC frame sink if enabled
+            if (options->webrtc_enabled) {
+                sc_frame_source_add_sink(src, &s->webrtc_server.frame_sink);
+            }
+#endif
         }
     }
 
@@ -867,6 +884,32 @@ aoa_complete:
         sc_frame_source_add_sink(src, &s->v4l2_sink.frame_sink);
 
         v4l2_sink_initialized = true;
+    }
+#endif
+
+#ifdef HAVE_WEBRTC
+    if (options->webrtc_enabled) {
+        struct sc_webrtc_server_params webrtc_params = {
+            .port = options->webrtc_port,
+            .stun_server = "stun:stun.l.google.com:19302",
+            .turn_server = NULL,
+            .turn_username = NULL,
+            .turn_password = NULL,
+        };
+
+        if (!sc_webrtc_server_init(&s->webrtc_server, &webrtc_params)) {
+            LOGE("Could not initialize WebRTC server");
+            goto end;
+        }
+        webrtc_server_initialized = true;
+
+        if (!sc_webrtc_server_start(&s->webrtc_server)) {
+            LOGE("Could not start WebRTC server");
+            goto end;
+        }
+        webrtc_server_started = true;
+
+        LOGI("WebRTC server available at http://localhost:%d", options->webrtc_port);
     }
 #endif
 
@@ -1018,6 +1061,16 @@ end:
 #ifdef HAVE_V4L2
     if (v4l2_sink_initialized) {
         sc_v4l2_sink_destroy(&s->v4l2_sink);
+    }
+#endif
+
+#ifdef HAVE_WEBRTC
+    if (webrtc_server_started) {
+        sc_webrtc_server_stop(&s->webrtc_server);
+        sc_webrtc_server_join(&s->webrtc_server);
+    }
+    if (webrtc_server_initialized) {
+        sc_webrtc_server_destroy(&s->webrtc_server);
     }
 #endif
 

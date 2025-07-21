@@ -78,10 +78,37 @@ jobs:
           sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
              libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
              libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
-             libv4l-dev
+             libv4l-dev cmake build-essential git
 
       - name: Test
         run: release/test_client.sh
+
+  test-client-webrtc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
+             libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
+             libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
+             libv4l-dev cmake build-essential git
+
+      - name: Build and install libdatachannel
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+
+      - name: Test WebRTC build
+        run: |
+          meson setup build -Dwebrtc=true --buildtype=debug
+          meson test -C build
 
   build-linux-x86_64:
     runs-on: ubuntu-22.04
@@ -104,7 +131,15 @@ jobs:
           sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
              libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
              libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
-             libv4l-dev
+             libv4l-dev cmake build-essential git
+
+      - name: Build and install libdatachannel
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
 
       - name: Build
         run: release/build_linux.sh x86_64
@@ -123,6 +158,61 @@ jobs:
           name: build-linux-x86_64-intermediate
           path: release/work/build-linux-x86_64/dist-tar/
 
+  build-linux-x86_64-webrtc:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check architecture
+        run: |
+            arch=$(uname -m)
+            if [[ "$arch" != x86_64 ]]
+            then
+                echo "Unexpected architecture: $arch" >&2
+                exit 1
+            fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
+             libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
+             libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
+             libv4l-dev cmake build-essential git
+
+      - name: Build and install libdatachannel
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+
+      - name: Build with WebRTC
+        run: |
+          mkdir -p release/work/build-linux-x86_64-webrtc
+          cd release/work/build-linux-x86_64-webrtc
+          meson setup build ../../../ -Dwebrtc=true --buildtype=release
+          meson compile -C build
+          mkdir -p dist/
+          cp build/scrcpy dist/scrcpy-webrtc
+          strip dist/scrcpy-webrtc
+
+      # upload-artifact does not preserve permissions
+      - name: Tar
+        run: |
+            cd release/work/build-linux-x86_64-webrtc
+            mkdir dist-tar
+            cd dist-tar
+            tar -C .. -cvf dist.tar.gz dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux-x86_64-webrtc-intermediate
+          path: release/work/build-linux-x86_64-webrtc/dist-tar/
+
   build-win32:
     runs-on: ubuntu-latest
     steps:
@@ -135,7 +225,7 @@ jobs:
           sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
              libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
              libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
-             mingw-w64 mingw-w64-tools libz-mingw-w64-dev
+             mingw-w64 mingw-w64-tools libz-mingw-w64-dev cmake build-essential git
 
       - name: Build
         run: release/build_windows.sh 32
@@ -308,6 +398,47 @@ jobs:
           name: release-linux-x86_64
           path: release/output/
 
+  package-linux-x86_64-webrtc:
+    needs:
+      - build-scrcpy-server
+      - build-linux-x86_64-webrtc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download scrcpy-server
+        uses: actions/download-artifact@v4
+        with:
+          name: scrcpy-server
+          path: release/work/build-server/server/
+
+      - name: Download build-linux-x86_64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: build-linux-x86_64-webrtc-intermediate
+          path: release/work/build-linux-x86_64-webrtc/dist-tar/
+
+      # upload-artifact does not preserve permissions
+      - name: Detar
+        run: |
+            cd release/work/build-linux-x86_64-webrtc
+            tar xf dist-tar/dist.tar.gz
+
+      - name: Package WebRTC build
+        run: |
+            mkdir -p release/output
+            cd release/work/build-linux-x86_64-webrtc
+            tar -czf ../../output/scrcpy-webrtc-${{ env.VERSION }}-linux-x86_64.tar.gz \
+                -C dist scrcpy-webrtc \
+                -C ../../../build-server/server scrcpy-server
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-x86_64-webrtc
+          path: release/output/
+
   package-win32:
     needs:
       - build-scrcpy-server
@@ -456,6 +587,7 @@ jobs:
     needs:
       - build-scrcpy-server
       - package-linux-x86_64
+      - package-linux-x86_64-webrtc
       - package-win32
       - package-win64
       - package-macos-aarch64
@@ -475,6 +607,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-linux-x86_64
+          path: release/output/
+
+      - name: Download release-linux-x86_64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: release-linux-x86_64-webrtc
           path: release/output/
 
       - name: Download release-win32
@@ -506,6 +644,28 @@ jobs:
 
       - name: Generate checksums
         run: release/generate_checksums.sh
+
+      - name: Create WebRTC documentation package
+        run: |
+          mkdir -p release/output/webrtc-docs
+          cp doc/webrtc.md release/output/webrtc-docs/
+          cp build_webrtc.sh release/output/webrtc-docs/
+          echo "# scrcpy WebRTC Build" > release/output/webrtc-docs/README.md
+          echo "" >> release/output/webrtc-docs/README.md
+          echo "This package contains WebRTC-enabled builds of scrcpy." >> release/output/webrtc-docs/README.md
+          echo "" >> release/output/webrtc-docs/README.md
+          echo "## WebRTC Builds Available:" >> release/output/webrtc-docs/README.md
+          echo "- scrcpy-webrtc-${{ env.VERSION }}-linux-x86_64.tar.gz" >> release/output/webrtc-docs/README.md
+          echo "" >> release/output/webrtc-docs/README.md
+          echo "## Documentation:" >> release/output/webrtc-docs/README.md
+          echo "- webrtc.md - Complete WebRTC documentation" >> release/output/webrtc-docs/README.md
+          echo "- build_webrtc.sh - Build script for WebRTC support" >> release/output/webrtc-docs/README.md
+          echo "" >> release/output/webrtc-docs/README.md
+          echo "## Quick Start:" >> release/output/webrtc-docs/README.md
+          echo "1. Extract the WebRTC build" >> release/output/webrtc-docs/README.md
+          echo "2. Run: ./scrcpy-webrtc --webrtc" >> release/output/webrtc-docs/README.md
+          echo "3. Open browser: http://localhost:8080" >> release/output/webrtc-docs/README.md
+          tar -czf release/output/scrcpy-webrtc-docs-${{ env.VERSION }}.tar.gz -C release/output webrtc-docs
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
