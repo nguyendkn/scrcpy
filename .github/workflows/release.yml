@@ -99,7 +99,7 @@ jobs:
 
       - name: Build and install libdatachannel
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
           cmake --build build
@@ -135,7 +135,7 @@ jobs:
 
       - name: Build and install libdatachannel
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
           cmake --build build
@@ -183,7 +183,7 @@ jobs:
 
       - name: Build and install libdatachannel
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
           cmake --build build
@@ -260,7 +260,7 @@ jobs:
 
       - name: Build and install libdatachannel for cross-compilation
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           # Cross-compile for Windows 32-bit
           cmake -B build-win32 \
@@ -361,7 +361,7 @@ jobs:
 
       - name: Build and install libdatachannel for cross-compilation
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           # Cross-compile for Windows 64-bit
           cmake -B build-win64 \
@@ -481,7 +481,7 @@ jobs:
 
       - name: Build and install libdatachannel
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
           cmake --build build
@@ -594,7 +594,7 @@ jobs:
 
       - name: Build and install libdatachannel
         run: |
-          git clone https://github.com/paullouisageneau/libdatachannel.git
+          git clone --recursive https://github.com/paullouisageneau/libdatachannel.git
           cd libdatachannel
           cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
           cmake --build build
