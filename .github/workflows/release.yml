@@ -244,6 +244,76 @@ jobs:
           name: build-win32-intermediate
           path: release/work/build-win32/dist-tar/
 
+  build-win32-webrtc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
+             libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
+             libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
+             mingw-w64 mingw-w64-tools libz-mingw-w64-dev cmake build-essential git
+
+      - name: Build and install libdatachannel for cross-compilation
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          # Cross-compile for Windows 32-bit
+          cmake -B build-win32 \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-mingw32.cmake \
+            -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/i686-w64-mingw32
+          cmake --build build-win32
+          sudo cmake --install build-win32
+
+      - name: Build dependencies
+        run: |
+          app/deps/adb_windows.sh
+          app/deps/sdl.sh win32 cross shared
+          app/deps/dav1d.sh win32 cross shared
+          app/deps/ffmpeg.sh win32 cross shared
+          app/deps/libusb.sh win32 cross shared
+
+      - name: Build with WebRTC
+        run: |
+          DEPS_INSTALL_DIR="$PWD/app/deps/work/install/win32-cross-shared"
+          mkdir -p release/work/build-win32-webrtc
+          cd release/work/build-win32-webrtc
+          meson setup build ../../../ \
+            --pkg-config-path="$DEPS_INSTALL_DIR/lib/pkgconfig" \
+            -Dc_args="-I$DEPS_INSTALL_DIR/include -I/usr/i686-w64-mingw32/include" \
+            -Dc_link_args="-L$DEPS_INSTALL_DIR/lib -L/usr/i686-w64-mingw32/lib" \
+            --cross-file=../../../cross_win32.txt \
+            --buildtype=release --strip -Db_lto=true \
+            -Dcompile_server=false -Dportable=true -Dwebrtc=true
+          meson compile -C build
+          mkdir -p dist/
+          cp build/app/scrcpy.exe dist/scrcpy-webrtc.exe
+          cp ../../../app/data/scrcpy-console.bat dist/
+          cp ../../../app/data/scrcpy-noconsole.vbs dist/
+          cp ../../../app/data/icon.png dist/
+          cp ../../../app/data/open_a_terminal_here.bat dist/
+          cp "$DEPS_INSTALL_DIR"/bin/*.dll dist/
+          cp -r ../../../app/deps/work/install/adb-windows/. dist/
+
+      # upload-artifact does not preserve permissions
+      - name: Tar
+        run: |
+            cd release/work/build-win32-webrtc
+            mkdir dist-tar
+            cd dist-tar
+            tar -C .. -cvf dist.tar.gz dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-win32-webrtc-intermediate
+          path: release/work/build-win32-webrtc/dist-tar/
+
   build-win64:
     runs-on: ubuntu-latest
     steps:
@@ -274,6 +344,76 @@ jobs:
         with:
           name: build-win64-intermediate
           path: release/work/build-win64/dist-tar/
+
+  build-win64-webrtc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y meson ninja-build nasm ffmpeg libsdl2-2.0-0 \
+             libsdl2-dev libavcodec-dev libavdevice-dev libavformat-dev \
+             libavutil-dev libswresample-dev libusb-1.0-0 libusb-1.0-0-dev \
+             mingw-w64 mingw-w64-tools libz-mingw-w64-dev cmake build-essential git
+
+      - name: Build and install libdatachannel for cross-compilation
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          # Cross-compile for Windows 64-bit
+          cmake -B build-win64 \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-mingw64.cmake \
+            -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/x86_64-w64-mingw32
+          cmake --build build-win64
+          sudo cmake --install build-win64
+
+      - name: Build dependencies
+        run: |
+          app/deps/adb_windows.sh
+          app/deps/sdl.sh win64 cross shared
+          app/deps/dav1d.sh win64 cross shared
+          app/deps/ffmpeg.sh win64 cross shared
+          app/deps/libusb.sh win64 cross shared
+
+      - name: Build with WebRTC
+        run: |
+          DEPS_INSTALL_DIR="$PWD/app/deps/work/install/win64-cross-shared"
+          mkdir -p release/work/build-win64-webrtc
+          cd release/work/build-win64-webrtc
+          meson setup build ../../../ \
+            --pkg-config-path="$DEPS_INSTALL_DIR/lib/pkgconfig" \
+            -Dc_args="-I$DEPS_INSTALL_DIR/include -I/usr/x86_64-w64-mingw32/include" \
+            -Dc_link_args="-L$DEPS_INSTALL_DIR/lib -L/usr/x86_64-w64-mingw32/lib" \
+            --cross-file=../../../cross_win64.txt \
+            --buildtype=release --strip -Db_lto=true \
+            -Dcompile_server=false -Dportable=true -Dwebrtc=true
+          meson compile -C build
+          mkdir -p dist/
+          cp build/app/scrcpy.exe dist/scrcpy-webrtc.exe
+          cp ../../../app/data/scrcpy-console.bat dist/
+          cp ../../../app/data/scrcpy-noconsole.vbs dist/
+          cp ../../../app/data/icon.png dist/
+          cp ../../../app/data/open_a_terminal_here.bat dist/
+          cp "$DEPS_INSTALL_DIR"/bin/*.dll dist/
+          cp -r ../../../app/deps/work/install/adb-windows/. dist/
+
+      # upload-artifact does not preserve permissions
+      - name: Tar
+        run: |
+            cd release/work/build-win64-webrtc
+            mkdir dist-tar
+            cd dist-tar
+            tar -C .. -cvf dist.tar.gz dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-win64-webrtc-intermediate
+          path: release/work/build-win64-webrtc/dist-tar/
 
   build-macos-aarch64:
     runs-on: macos-latest
@@ -319,6 +459,76 @@ jobs:
           name: build-macos-aarch64-intermediate
           path: release/work/build-macos-aarch64/dist-tar/
 
+  build-macos-aarch64-webrtc:
+    runs-on: macos-latest
+    steps:
+      - name: Check architecture
+        run: |
+            arch=$(uname -m)
+            if [[ "$arch" != arm64 ]]
+            then
+                echo "Unexpected architecture: $arch" >&2
+                exit 1
+            fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+            brew install meson ninja nasm libiconv zlib automake autoconf \
+                libtool cmake
+
+      - name: Build and install libdatachannel
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+
+      - name: Build dependencies
+        run: |
+          app/deps/adb_macos.sh
+          app/deps/sdl.sh macos native static
+          app/deps/dav1d.sh macos native static
+          app/deps/ffmpeg.sh macos native static
+          app/deps/libusb.sh macos native static
+
+      - name: Build with WebRTC
+        env:
+          MACOSX_DEPLOYMENT_TARGET: 10.13
+        run: |
+          DEPS_INSTALL_DIR="$PWD/app/deps/work/install/macos-native-static"
+          mkdir -p release/work/build-macos-aarch64-webrtc
+          cd release/work/build-macos-aarch64-webrtc
+          meson setup build ../../../ \
+            --pkg-config-path="$DEPS_INSTALL_DIR/lib/pkgconfig" \
+            -Dc_args="-I$DEPS_INSTALL_DIR/include" \
+            -Dc_link_args="-L$DEPS_INSTALL_DIR/lib" \
+            --buildtype=release --strip -Db_lto=true \
+            -Dcompile_server=false -Dportable=true -Dstatic=true -Dwebrtc=true
+          meson compile -C build
+          mkdir -p dist/
+          cp build/app/scrcpy dist/scrcpy-webrtc
+          cp ../../../app/data/icon.png dist/
+          cp ../../../app/scrcpy.1 dist/
+          cp -r ../../../app/deps/work/install/adb-macos/. dist/
+
+      # upload-artifact does not preserve permissions
+      - name: Tar
+        run: |
+            cd release/work/build-macos-aarch64-webrtc
+            mkdir dist-tar
+            cd dist-tar
+            tar -C .. -cvf dist.tar.gz dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-macos-aarch64-webrtc-intermediate
+          path: release/work/build-macos-aarch64-webrtc/dist-tar/
+
   build-macos-x86_64:
     runs-on: macos-13
     steps:
@@ -361,6 +571,76 @@ jobs:
         with:
           name: build-macos-x86_64-intermediate
           path: release/work/build-macos-x86_64/dist-tar/
+
+  build-macos-x86_64-webrtc:
+    runs-on: macos-13
+    steps:
+      - name: Check architecture
+        run: |
+            arch=$(uname -m)
+            if [[ "$arch" != x86_64 ]]
+            then
+                echo "Unexpected architecture: $arch" >&2
+                exit 1
+            fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+            brew install meson ninja nasm libiconv zlib automake cmake
+            # autoconf and libtool are already installed on macos-13
+
+      - name: Build and install libdatachannel
+        run: |
+          git clone https://github.com/paullouisageneau/libdatachannel.git
+          cd libdatachannel
+          cmake -B build -DUSE_GNUTLS=0 -DUSE_NICE=0 -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+
+      - name: Build dependencies
+        run: |
+          app/deps/adb_macos.sh
+          app/deps/sdl.sh macos native static
+          app/deps/dav1d.sh macos native static
+          app/deps/ffmpeg.sh macos native static
+          app/deps/libusb.sh macos native static
+
+      - name: Build with WebRTC
+        env:
+          MACOSX_DEPLOYMENT_TARGET: 10.13
+        run: |
+          DEPS_INSTALL_DIR="$PWD/app/deps/work/install/macos-native-static"
+          mkdir -p release/work/build-macos-x86_64-webrtc
+          cd release/work/build-macos-x86_64-webrtc
+          meson setup build ../../../ \
+            --pkg-config-path="$DEPS_INSTALL_DIR/lib/pkgconfig" \
+            -Dc_args="-I$DEPS_INSTALL_DIR/include" \
+            -Dc_link_args="-L$DEPS_INSTALL_DIR/lib" \
+            --buildtype=release --strip -Db_lto=true \
+            -Dcompile_server=false -Dportable=true -Dstatic=true -Dwebrtc=true
+          meson compile -C build
+          mkdir -p dist/
+          cp build/app/scrcpy dist/scrcpy-webrtc
+          cp ../../../app/data/icon.png dist/
+          cp ../../../app/scrcpy.1 dist/
+          cp -r ../../../app/deps/work/install/adb-macos/. dist/
+
+      # upload-artifact does not preserve permissions
+      - name: Tar
+        run: |
+            cd release/work/build-macos-x86_64-webrtc
+            mkdir dist-tar
+            cd dist-tar
+            tar -C .. -cvf dist.tar.gz dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-macos-x86_64-webrtc-intermediate
+          path: release/work/build-macos-x86_64-webrtc/dist-tar/
 
   package-linux-x86_64:
     needs:
@@ -511,6 +791,102 @@ jobs:
           name: release-win64
           path: release/output
 
+  package-win32-webrtc:
+    needs:
+      - build-scrcpy-server
+      - build-win32-webrtc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download scrcpy-server
+        uses: actions/download-artifact@v4
+        with:
+          name: scrcpy-server
+          path: release/work/build-server/server/
+
+      - name: Download build-win32-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: build-win32-webrtc-intermediate
+          path: release/work/build-win32-webrtc/dist-tar/
+
+      # upload-artifact does not preserve permissions
+      - name: Detar
+        run: |
+            cd release/work/build-win32-webrtc
+            tar xf dist-tar/dist.tar.gz
+
+      - name: Package WebRTC build
+        run: |
+            mkdir -p release/output
+            cd release/work/build-win32-webrtc
+            zip -r ../../output/scrcpy-webrtc-${{ env.VERSION }}-win32.zip \
+                dist/scrcpy-webrtc.exe \
+                dist/*.dll \
+                dist/*.bat \
+                dist/*.vbs \
+                dist/*.png \
+                dist/adb.exe \
+                dist/AdbWinApi.dll \
+                dist/AdbWinUsbApi.dll \
+                ../../../build-server/server/scrcpy-server
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-win32-webrtc
+          path: release/output/
+
+  package-win64-webrtc:
+    needs:
+      - build-scrcpy-server
+      - build-win64-webrtc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download scrcpy-server
+        uses: actions/download-artifact@v4
+        with:
+          name: scrcpy-server
+          path: release/work/build-server/server/
+
+      - name: Download build-win64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: build-win64-webrtc-intermediate
+          path: release/work/build-win64-webrtc/dist-tar/
+
+      # upload-artifact does not preserve permissions
+      - name: Detar
+        run: |
+            cd release/work/build-win64-webrtc
+            tar xf dist-tar/dist.tar.gz
+
+      - name: Package WebRTC build
+        run: |
+            mkdir -p release/output
+            cd release/work/build-win64-webrtc
+            zip -r ../../output/scrcpy-webrtc-${{ env.VERSION }}-win64.zip \
+                dist/scrcpy-webrtc.exe \
+                dist/*.dll \
+                dist/*.bat \
+                dist/*.vbs \
+                dist/*.png \
+                dist/adb.exe \
+                dist/AdbWinApi.dll \
+                dist/AdbWinUsbApi.dll \
+                ../../../build-server/server/scrcpy-server
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-win64-webrtc
+          path: release/output/
+
   package-macos-aarch64:
     needs:
       - build-scrcpy-server
@@ -583,15 +959,107 @@ jobs:
           name: release-macos-x86_64
           path: release/output/
 
+  package-macos-aarch64-webrtc:
+    needs:
+      - build-scrcpy-server
+      - build-macos-aarch64-webrtc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download scrcpy-server
+        uses: actions/download-artifact@v4
+        with:
+          name: scrcpy-server
+          path: release/work/build-server/server/
+
+      - name: Download build-macos-aarch64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: build-macos-aarch64-webrtc-intermediate
+          path: release/work/build-macos-aarch64-webrtc/dist-tar/
+
+      # upload-artifact does not preserve permissions
+      - name: Detar
+        run: |
+            cd release/work/build-macos-aarch64-webrtc
+            tar xf dist-tar/dist.tar.gz
+
+      - name: Package WebRTC build
+        run: |
+            mkdir -p release/output
+            cd release/work/build-macos-aarch64-webrtc
+            tar -czf ../../output/scrcpy-webrtc-${{ env.VERSION }}-macos-aarch64.tar.gz \
+                -C dist scrcpy-webrtc \
+                -C dist adb \
+                -C dist icon.png \
+                -C dist scrcpy.1 \
+                -C ../../../build-server/server scrcpy-server
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-aarch64-webrtc
+          path: release/output/
+
+  package-macos-x86_64-webrtc:
+    needs:
+      - build-scrcpy-server
+      - build-macos-x86_64-webrtc
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download scrcpy-server
+        uses: actions/download-artifact@v4
+        with:
+          name: scrcpy-server
+          path: release/work/build-server/server/
+
+      - name: Download build-macos-x86_64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: build-macos-x86_64-webrtc-intermediate
+          path: release/work/build-macos-x86_64-webrtc/dist-tar/
+
+      # upload-artifact does not preserve permissions
+      - name: Detar
+        run: |
+            cd release/work/build-macos-x86_64-webrtc
+            tar xf dist-tar/dist.tar.gz
+
+      - name: Package WebRTC build
+        run: |
+            mkdir -p release/output
+            cd release/work/build-macos-x86_64-webrtc
+            tar -czf ../../output/scrcpy-webrtc-${{ env.VERSION }}-macos-x86_64.tar.gz \
+                -C dist scrcpy-webrtc \
+                -C dist adb \
+                -C dist icon.png \
+                -C dist scrcpy.1 \
+                -C ../../../build-server/server scrcpy-server
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-x86_64-webrtc
+          path: release/output/
+
   release:
     needs:
       - build-scrcpy-server
       - package-linux-x86_64
       - package-linux-x86_64-webrtc
       - package-win32
+      - package-win32-webrtc
       - package-win64
+      - package-win64-webrtc
       - package-macos-aarch64
+      - package-macos-aarch64-webrtc
       - package-macos-x86_64
+      - package-macos-x86_64-webrtc
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -621,10 +1089,22 @@ jobs:
           name: release-win32
           path: release/output/
 
+      - name: Download release-win32-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: release-win32-webrtc
+          path: release/output/
+
       - name: Download release-win64
         uses: actions/download-artifact@v4
         with:
           name: release-win64
+          path: release/output/
+
+      - name: Download release-win64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: release-win64-webrtc
           path: release/output/
 
       - name: Download release-macos-aarch64
@@ -633,10 +1113,22 @@ jobs:
           name: release-macos-aarch64
           path: release/output/
 
+      - name: Download release-macos-aarch64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos-aarch64-webrtc
+          path: release/output/
+
       - name: Download release-macos-x86_64
         uses: actions/download-artifact@v4
         with:
           name: release-macos-x86_64
+          path: release/output/
+
+      - name: Download release-macos-x86_64-webrtc
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos-x86_64-webrtc
           path: release/output/
 
       - name: Package server
@@ -656,6 +1148,10 @@ jobs:
           echo "" >> release/output/webrtc-docs/README.md
           echo "## WebRTC Builds Available:" >> release/output/webrtc-docs/README.md
           echo "- scrcpy-webrtc-${{ env.VERSION }}-linux-x86_64.tar.gz" >> release/output/webrtc-docs/README.md
+          echo "- scrcpy-webrtc-${{ env.VERSION }}-win32.zip" >> release/output/webrtc-docs/README.md
+          echo "- scrcpy-webrtc-${{ env.VERSION }}-win64.zip" >> release/output/webrtc-docs/README.md
+          echo "- scrcpy-webrtc-${{ env.VERSION }}-macos-aarch64.tar.gz" >> release/output/webrtc-docs/README.md
+          echo "- scrcpy-webrtc-${{ env.VERSION }}-macos-x86_64.tar.gz" >> release/output/webrtc-docs/README.md
           echo "" >> release/output/webrtc-docs/README.md
           echo "## Documentation:" >> release/output/webrtc-docs/README.md
           echo "- webrtc.md - Complete WebRTC documentation" >> release/output/webrtc-docs/README.md
